@@ -23,7 +23,6 @@ namespace MqttTestApp
                     {
                         GenCts = false;
                         await LogCheckTask;
-                        await mqttUnit.Clean_Disconnect();
                         Console.WriteLine("⏸ 로그 체크 중지");
                     }
 

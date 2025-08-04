@@ -27,7 +27,7 @@ namespace MqttTestApp
         public Dictionary<string, int> PV { get; set; } = new Dictionary<string, int>
             {
                 { "ICPRF_Forward", 0 },
-                { "BiasRFF_Forward", 0 },
+                { "BiasRF_Forward", 0 },
             };
     }
 
@@ -39,7 +39,7 @@ namespace MqttTestApp
             };
         public Dictionary<string, int> PV { get; set; } = new Dictionary<string, int>
             {
-                { "PressurePV", 0 },
+                { "Pressure_PV", 0 },
             };
     }
     public class MFC
@@ -86,7 +86,7 @@ namespace MqttTestApp
 
     public class MQTT
     {
-        public string Host { get; set; } = "192.168.127.2";
+        public string Host { get; set; } = "192.168.0.17";
         public short? Port { get; set; } = 9101;
         public Key _key { get; set; }
         private IMqttClient mqttClient;
@@ -141,7 +141,7 @@ namespace MqttTestApp
                 }
                 catch (Exception exc)
                 {
-                    Task.Delay(200);
+                   await Task.Delay(200);
                 }
             }
             if ((response.ResultCode == MqttClientConnectResultCode.Success)
@@ -198,12 +198,10 @@ namespace MqttTestApp
                 await mqttClient.DisconnectAsync(new MqttClientDisconnectOptionsBuilder()
                     .WithReason(MqttClientDisconnectOptionsReason.NormalDisconnection).Build());
                 mqttClient.Dispose();
-                mqttClient = null;
             }
-
+            mqttClient = null;
             disconnect = true;
         }
-
 
         public async Task<MqttClientPublishResult> Publish(IMqttClient mqttClient, string topic, string message)
         {
