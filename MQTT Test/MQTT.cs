@@ -1,66 +1,101 @@
-﻿using System;
+﻿using MQTTnet;
+using MQTTnet.Client;
+using MQTTnet.Protocol;
+using MQTTnet.Server;
+using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Markup;
-using MQTTnet;
-using MQTTnet.Client;
-using MQTTnet.Protocol;
-using Newtonsoft.Json;
 
 namespace MqttTestApp
 {
     public class Status
     {
-        public bool bstatus { get;set; }
+        public bool bstatus { get; set; }
         public DateTime Timestamp { get; set; }
     }
+    public class Power
+    {
+        public Dictionary<string, int> SV { get; set; } = new Dictionary<string, int>
+            {
+                { "ICPRF_SV", 0 },
+                { "BiasRF_SV", 0 },
+            };
+        public Dictionary<string, int> PV { get; set; } = new Dictionary<string, int>
+            {
+                { "ICPRF_Forward", 0 },
+                { "BiasRFF_Forward", 0 },
+            };
+    }
 
+    public class Pressure
+    {
+        public Dictionary<string, int> SV { get; set; } = new Dictionary<string, int>
+            {
+                { "Pressure_SV", 0 },
+            };
+        public Dictionary<string, int> PV { get; set; } = new Dictionary<string, int>
+            {
+                { "PressurePV", 0 },
+            };
+    }
+    public class MFC
+    {
+        public Dictionary<string, int> SV { get; set; } = new Dictionary<string, int>
+            {
+                { "MFCN2_SV", 0 },
+                { "MFCO2_SV", 0 },
+                { "MFCAr_SV", 0 },
+                { "MFCCF4_SV", 0 }
+            };
+        public Dictionary<string, int> PV { get; set; } = new Dictionary<string, int>
+            {
+                { "MFCN2_PV", 0 },
+                { "MFCO2_PV", 0 },
+                { "MFCAr_PV", 0 },
+                { "MFCCF4_PV", 0 }
+            };
+    }
+    public class MV
+    {
+        public Power Power { get; set; } = new Power();
+        public Pressure Pressure { get; set; } = new Pressure();
+        public MFC MFC { get; set; } = new MFC();
+    }
     public class Log
     {
-        public Dictionary<string, int> LogEntries { get; set; } = new Dictionary<string, int>
+        public MV MV { get; set; } = new MV();
+        public Dictionary<string, int> IV { get; set; } = new Dictionary<string, int>
         {
-            { "ICPRF_SV", 0 },
-            { "ICPRF_Forward", 0 },
             { "ICPRF_Reflect", 0 },
             { "ICPRF_TunePos", 0 },
             { "ICPRF_LoadPos", 0 },
-            { "BiasRF_SV", 0 },
-            { "BiasRFF_Forward", 0 },
             { "BiasRF_Reflect", 0 },
             { "BiasRF_TunePos", 0 },
             { "BiasRF_LoadPos", 0 },
-            { "BiasVolt", 0 },
-            { "PressurePV", 0 },
-            { "PositionPV", 0 },
-            { "MFCN2_SV", 0 },
-            { "MFCN2_PV", 0 },
-            { "MFCO2_SV", 0 },
-            { "MFCO2_PV", 0 },
-            { "MFCAr_SV", 0 },
-            { "MFCAr_PV", 0 },
-            { "MFCCF4_SV", 0 },
-            { "MFCCF4_PV", 0 },
+            { "PositionPV", 0},
             { "ConvPM_Pressure", 0 },
             { "ConvLine_Pressure", 0 },
-            { "Pedestal_Temp", 0 },
             { "Chiller_Temp", 0 }
         };
         public DateTime Timestamp { get; set; }
     }
+
     public class MQTT
     {
         public string Host { get; set; } = "192.168.127.2";
-        public short? PortStatus { get; set; } = 9001;
-        public short? PortLog { get; set; } = 9002;
+        public short? Port { get; set; } = 9101;
         public Key _key { get; set; }
-        private IMqttClient mqttClientLog, mqttClientStatus;
-        private MqttClientOptions optionsStatus,optionsLog;
-        private MqttClientConnectResult responseLogs, responseStatus;
+        private IMqttClient mqttClient;
+        private MqttClientOptions options;
+        private MqttClientConnectResult response;
         public bool disconnect { get; set; } = true;
         public string TopicStatus { private get; set; } = "Status";
         public string TopicLog { private get; set; } = "Logs";
+        public string TopicControl { private get; set; } = "Control";
 
         public RandomGen _randomgen;
         public Status status { get; private set; }
@@ -76,10 +111,10 @@ namespace MqttTestApp
 
         public async Task Connect()
         {
-            if (mqttClientStatus == null)
+            if (mqttClient == null)
             {
-                mqttClientStatus = new MqttFactory().CreateMqttClient();
-                mqttClientStatus.ApplicationMessageReceivedAsync += async eventArgs =>
+                mqttClient = new MqttFactory().CreateMqttClient();
+                mqttClient.ApplicationMessageReceivedAsync += async eventArgs => 
                 {
                     string message = Encoding.UTF8.GetString(eventArgs.ApplicationMessage.PayloadSegment.ToArray());
                     status = JsonConvert.DeserializeObject<Status>(message);
@@ -89,29 +124,18 @@ namespace MqttTestApp
                     bstatus = _key.GenCts,
                     Timestamp = DateTime.UtcNow
                 };
-                optionsStatus = new MqttClientOptionsBuilder()
-                    .WithTcpServer(Host, PortStatus)
+                options = new MqttClientOptionsBuilder()
+                    .WithTcpServer(Host, Port)
                     .Build();
             }
-            if (mqttClientLog == null)
-            {
-                mqttClientLog = new MqttFactory().CreateMqttClient();
-                optionsLog = new MqttClientOptionsBuilder()
-                    .WithTcpServer(Host, PortLog)
-                    .Build();
-            }
-            disconnect = !mqttClientStatus.IsConnected || !mqttClientLog.IsConnected;
-            while (disconnect)
+
+            while (!mqttClient.IsConnected)
             {
                 try
                 {
-                    if (!mqttClientStatus.IsConnected)
+                    if (!mqttClient.IsConnected)
                     {
-                        responseStatus = await mqttClientStatus.ConnectAsync(optionsStatus);
-                    }
-                    if (!mqttClientLog.IsConnected)
-                    {
-                        responseLogs = await mqttClientLog.ConnectAsync(optionsLog);
+                        response = await mqttClient.ConnectAsync(options);
                     }
                     disconnect = false;
                 }
@@ -120,7 +144,7 @@ namespace MqttTestApp
                     Task.Delay(200);
                 }
             }
-            if ((responseStatus.ResultCode == MqttClientConnectResultCode.Success)
+            if ((response.ResultCode == MqttClientConnectResultCode.Success)
                 && StatusCheckTask.IsCompleted)
             {
                 StatusCheckTask = Task.Run(() => StatusCheck());
@@ -136,7 +160,7 @@ namespace MqttTestApp
                     status.bstatus = _key.GenCts;
                     status.Timestamp = DateTime.UtcNow;
                     string message = JsonConvert.SerializeObject(status);
-                    var response = await Publish(mqttClientStatus, TopicStatus, message);
+                    var response = await Publish(mqttClient, TopicStatus, message);
                 }
 
                 catch (Exception Exc)
@@ -154,7 +178,7 @@ namespace MqttTestApp
                 try
                 {
                     string message = JsonConvert.SerializeObject(_randomgen.log);
-                    var response = await Publish(mqttClientLog, TopicLog, message);
+                    var response = await Publish(mqttClient, TopicLog, message);
                     Console.WriteLine(message);
                 }
                 catch (Exception Exc)
@@ -169,13 +193,12 @@ namespace MqttTestApp
         {
             _key.GenCts = false;
 
-            if (mqttClientLog != null)
+            if (mqttClient != null)
             {
-                await mqttClientLog.DisconnectAsync(new MqttClientDisconnectOptionsBuilder()
+                await mqttClient.DisconnectAsync(new MqttClientDisconnectOptionsBuilder()
                     .WithReason(MqttClientDisconnectOptionsReason.NormalDisconnection).Build());
-                mqttClientLog.Dispose();
-                mqttClientLog = null;
-
+                mqttClient.Dispose();
+                mqttClient = null;
             }
 
             disconnect = true;
@@ -191,8 +214,6 @@ namespace MqttTestApp
                         .WithPayload(message)
                         .Build();
             return await mqttClient.PublishAsync(applicationMessage, CancellationToken.None);
-
-            
         }
 
         public async Task<MqttClientSubscribeResult> Subscribe(IMqttClient mqttClient, string topic)
