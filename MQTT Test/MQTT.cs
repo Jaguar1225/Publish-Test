@@ -14,7 +14,7 @@ namespace MqttTestApp
 {
     public class MQTT
     {
-        public string Host { get; set; } = "192.168.127.2";
+        public string Host { get; set; } = "192.168.0.17";
         public short? Port { get; set; } = 9101;
         public Key _key { get; set; }
         private IMqttClient mqttClient;
