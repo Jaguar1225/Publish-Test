@@ -12,81 +12,9 @@ using System.Windows.Markup;
 
 namespace MqttTestApp
 {
-    public class Status
-    {
-        public bool bstatus { get; set; }
-        public DateTime Timestamp { get; set; }
-    }
-    public class Power
-    {
-        public Dictionary<string, int> SV { get; set; } = new Dictionary<string, int>
-            {
-                { "ICPRF_SV", 0 },
-                { "BiasRF_SV", 0 },
-            };
-        public Dictionary<string, int> PV { get; set; } = new Dictionary<string, int>
-            {
-                { "ICPRF_Forward", 0 },
-                { "BiasRF_Forward", 0 },
-            };
-    }
-
-    public class Pressure
-    {
-        public Dictionary<string, int> SV { get; set; } = new Dictionary<string, int>
-            {
-                { "Pressure_SV", 0 },
-            };
-        public Dictionary<string, int> PV { get; set; } = new Dictionary<string, int>
-            {
-                { "Pressure_PV", 0 },
-            };
-    }
-    public class MFC
-    {
-        public Dictionary<string, int> SV { get; set; } = new Dictionary<string, int>
-            {
-                { "MFCN2_SV", 0 },
-                { "MFCO2_SV", 0 },
-                { "MFCAr_SV", 0 },
-                { "MFCCF4_SV", 0 }
-            };
-        public Dictionary<string, int> PV { get; set; } = new Dictionary<string, int>
-            {
-                { "MFCN2_PV", 0 },
-                { "MFCO2_PV", 0 },
-                { "MFCAr_PV", 0 },
-                { "MFCCF4_PV", 0 }
-            };
-    }
-    public class MV
-    {
-        public Power Power { get; set; } = new Power();
-        public Pressure Pressure { get; set; } = new Pressure();
-        public MFC MFC { get; set; } = new MFC();
-    }
-    public class Log
-    {
-        public MV MV { get; set; } = new MV();
-        public Dictionary<string, int> IV { get; set; } = new Dictionary<string, int>
-        {
-            { "ICPRF_Reflect", 0 },
-            { "ICPRF_TunePos", 0 },
-            { "ICPRF_LoadPos", 0 },
-            { "BiasRF_Reflect", 0 },
-            { "BiasRF_TunePos", 0 },
-            { "BiasRF_LoadPos", 0 },
-            { "PositionPV", 0},
-            { "ConvPM_Pressure", 0 },
-            { "ConvLine_Pressure", 0 },
-            { "Chiller_Temp", 0 }
-        };
-        public DateTime Timestamp { get; set; }
-    }
-
     public class MQTT
     {
-        public string Host { get; set; } = "192.168.0.17";
+        public string Host { get; set; } = "192.168.127.2";
         public short? Port { get; set; } = 9101;
         public Key _key { get; set; }
         private IMqttClient mqttClient;
@@ -98,7 +26,8 @@ namespace MqttTestApp
         public string TopicControl { private get; set; } = "Control";
 
         public RandomGen _randomgen;
-        public Status status { get; private set; }
+        public DataStructure.Status status { get; private set; }
+        public DataStructure.Control? control { get; set; }
         public Dictionary<string, int> Log { get; set; }
 
         private Task StatusCheckTask = Task.CompletedTask;
@@ -117,9 +46,10 @@ namespace MqttTestApp
                 mqttClient.ApplicationMessageReceivedAsync += async eventArgs => 
                 {
                     string message = Encoding.UTF8.GetString(eventArgs.ApplicationMessage.PayloadSegment.ToArray());
-                    status = JsonConvert.DeserializeObject<Status>(message);
+                    control = JsonConvert.DeserializeObject<DataStructure.Control>(message);
+                    Console.WriteLine($"Received message: {control} on topic: {eventArgs.ApplicationMessage.Topic}");
                 };
-                status = new Status
+                status = new DataStructure.Status
                 {
                     bstatus = _key.GenCts,
                     Timestamp = DateTime.UtcNow
@@ -136,11 +66,16 @@ namespace MqttTestApp
                     if (!mqttClient.IsConnected)
                     {
                         response = await mqttClient.ConnectAsync(options);
+                        await mqttClient.SubscribeAsync(
+                            new MqttTopicFilterBuilder()
+                            .WithTopic(TopicControl)
+                            .Build());
                     }
                     disconnect = false;
                 }
                 catch (Exception exc)
                 {
+                   Console.WriteLine($"Connection failed: {exc.Message}");
                    await Task.Delay(200);
                 }
             }
