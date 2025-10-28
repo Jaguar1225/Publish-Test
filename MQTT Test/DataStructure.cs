@@ -9,36 +9,41 @@ namespace MqttTestApp
             public bool bstatus { get; set; }
             public DateTime Timestamp { get; set; }
         }
-        public class SVPV
+        public class SVPV<T> where T : struct, IConvertible
         {
-            public int SV { get; set; } = 0;
-            public int PV { get; set; } = 0;
+            public T SV { get; set; }
+            public T PV { get; set; }
+            public SVPV()
+            {
+                SV = default(T);
+                PV = default(T);
+            }
         }
         public class Power
         {
-            public SVPV ICPRF = new SVPV();
-            public SVPV BiasRF = new SVPV();
+            public SVPV<int> ICPRF = new SVPV<int>();
+            public SVPV<int> BiasRF = new SVPV<int>();
         }
 
         public class MFC
         {
-            public SVPV N2 { get; set; } = new SVPV();
-            public SVPV O2 { get; set; } = new SVPV();
-            public SVPV Ar { get; set; } = new SVPV();
-            public SVPV CF4 { get; set; } = new SVPV();
+            public SVPV<int> N2 { get; set; } = new SVPV<int>();
+            public SVPV<int> O2 { get; set; } = new SVPV<int>();
+            public SVPV<int> Ar { get; set; } = new SVPV<int>();
+            public SVPV<int> CF4 { get; set; } = new SVPV<int>();
         }
 
         public class MV
         {
             public Power Power { get; set; } = new Power();
-            public SVPV Pressure { get; set; } = new SVPV();
+            public SVPV<double> Pressure { get; set; } = new SVPV<double>();
             public MFC MFC { get; set; } = new MFC();
         }
         public class matching
         {
-            public int Reflect { get; set; } = 0;
-            public int TunePos { get; set; } = 0;
-            public int LoadPos { get; set; } = 0;
+            public double Reflect { get; set; } = 0;
+            public double TunePos { get; set; } = 0;
+            public double LoadPos { get; set; } = 0;
         }
         public class Matching
         {
@@ -47,15 +52,15 @@ namespace MqttTestApp
         }
         public class Valve
         {
-            public int Position { get; set; } = 0;
-            public int ConvPM { get; set; } = 0;
-            public int ConvLine { get; set; } = 0;
+            public double Position { get; set; } = 0;
+            public double ConvPM { get; set; } = 0;
+            public double ConvLine { get; set; } = 0;
         }
         public class IV
         {
             public Matching Matching { get; set; } = new Matching();
             public Valve Valve { get; set; } = new Valve();
-            public int Temp { get; set; } = 0;
+            public double Temp { get; set; } = 0;
         }
         public class Log
         {
@@ -67,7 +72,7 @@ namespace MqttTestApp
         public class Control
         {
             public MV MV { get; set; } = new MV();
-            public DateTime Timestampe { get; set; } = DateTime.UtcNow;
+            public DateTime Timestamp { get; set; } = DateTime.UtcNow;
         }
     }
 }
