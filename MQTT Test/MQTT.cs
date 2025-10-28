@@ -14,7 +14,7 @@ namespace MqttTestApp
 {
     public class MQTT
     {
-        public string Host { get; set; } = "192.168.0.17";
+        public string Host { get; set; } = "127.0.0.1";
         public short? Port { get; set; } = 9101;
         public Key _key { get; set; }
         private IMqttClient mqttClient;
@@ -43,16 +43,11 @@ namespace MqttTestApp
             if (mqttClient == null)
             {
                 mqttClient = new MqttFactory().CreateMqttClient();
-                mqttClient.ApplicationMessageReceivedAsync += async eventArgs => 
-                {
-                    string message = Encoding.UTF8.GetString(eventArgs.ApplicationMessage.PayloadSegment.ToArray());
-                    control = JsonConvert.DeserializeObject<DataStructure.Control>(message);
-                    Console.WriteLine($"Received message: {control} on topic: {eventArgs.ApplicationMessage.Topic}");
-                };
+                mqttClient.ApplicationMessageReceivedAsync += HandleMessage;
                 status = new DataStructure.Status
                 {
                     bstatus = _key.GenCts,
-                    Timestamp = DateTime.UtcNow
+                    Timestamp = MonoClock.NowNs()
                 };
                 options = new MqttClientOptionsBuilder()
                     .WithTcpServer(Host, Port)
@@ -69,6 +64,10 @@ namespace MqttTestApp
                         await mqttClient.SubscribeAsync(
                             new MqttTopicFilterBuilder()
                             .WithTopic(TopicControl)
+                            .Build());
+                        await mqttClient.SubscribeAsync(
+                            new MqttTopicFilterBuilder()
+                            .WithTopic("Time/req")
                             .Build());
                     }
                     disconnect = false;
@@ -93,7 +92,7 @@ namespace MqttTestApp
                 try
                 {
                     status.bstatus = _key.GenCts;
-                    status.Timestamp = DateTime.UtcNow;
+                    status.Timestamp = MonoClock.NowNs();
                     string message = JsonConvert.SerializeObject(status);
                     var response = await Publish(mqttClient, TopicStatus, message);
                 }
@@ -121,6 +120,75 @@ namespace MqttTestApp
                     continue;
                 }
                 await Task.Delay(500);
+            }
+        }
+
+        public async Task HandleMessage(MqttApplicationMessageReceivedEventArgs e)
+        {
+            try
+            {
+
+                var topic = e.ApplicationMessage.Topic;
+                var msg = Encoding.UTF8.GetString(e.ApplicationMessage.PayloadSegment.ToArray());
+                switch (topic)
+                {
+                    case var t when t == "Time/req":
+                        try
+                        {
+                            long t3 = MonoClock.NowNs();
+                            var settings = new JsonSerializerSettings
+                            {
+                                MissingMemberHandling = MissingMemberHandling.Ignore,
+                                NullValueHandling = NullValueHandling.Ignore,
+                                Error = (sender, args) =>
+                                {
+                                    Console.WriteLine($"Error deserializing message: {args.ErrorContext.Error.Message}");
+                                    args.ErrorContext.Handled = true;
+                                }
+                            };
+
+                            var newTime = JsonConvert.DeserializeObject<DataStructure.Timestamp>(msg, settings);
+                            if (newTime != null)
+                            {
+                                long t0 = newTime.t0, t1 = newTime.t1, t2 = newTime.t2;
+                                double offset = ((t1 - t0) + (t2 - t3)) / 2.0;
+                                string payload = JsonConvert.SerializeObject(offset);
+                                await Publish(mqttClient, "Time/res", payload);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error processing time message: {ex.Message}");
+                        }
+                        break;
+                    case var t when t == TopicControl:
+                        try
+                        {
+                            var settings = new JsonSerializerSettings
+                            {
+                                MissingMemberHandling = MissingMemberHandling.Ignore,
+                                NullValueHandling = NullValueHandling.Ignore,
+                                Error = (sender, args) =>
+                                {
+                                    Console.WriteLine($"Error deserializing message: {args.ErrorContext.Error.Message}");
+                                    args.ErrorContext.Handled = true;
+                                }
+                            };
+                            var control = JsonConvert.DeserializeObject<DataStructure.Control>(msg);
+                            Console.WriteLine($"Received message: {control} on topic: {e.ApplicationMessage.Topic}");
+
+                        }
+                        catch
+                        {
+                            break;
+                        }
+                        break;
+                }
+
+            }
+            catch (Exception Exc)
+            {
+                return;
             }
         }
 

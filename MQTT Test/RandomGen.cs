@@ -29,7 +29,7 @@ namespace MqttTestApp
                 if (log == null)
                 {
                     log = new DataStructure.Log();
-                    log.Timestamp = DateTime.UtcNow;
+                    log.Timestamp = MonoClock.NowNs();
                 }
 
                 if (_key.GenCts)
@@ -58,7 +58,8 @@ namespace MqttTestApp
                     log.IV.Valve.ConvPM = random.Next(1, 301);
                     log.IV.Valve.ConvLine = random.Next(1, 301);
                     log.IV.Temp = random.Next(1, 301);
-                    log.Timestamp = DateTime.UtcNow;
+                    log.Timestamp = 0;
+                    log.MonoTimeNs = MonoClock.NowNs();
                 }
                 try
                 {
